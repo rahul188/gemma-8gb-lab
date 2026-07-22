@@ -1,9 +1,7 @@
 # gemma-8gb-lab
 
-**"You can fine-tune Gemma on an 8GB GPU."** — LinkedIn
-**"Prove it."** — this repo
-
-Tested on an RTX 4060 Ti (8GB), native Windows 11, browser open, chai in hand.
+Fine-tuning and running Gemma on an 8GB consumer GPU — actually measured, not
+quoted. RTX 4060 Ti, native Windows 11, no cloud.
 
 ![Gemma Fine-tune Lab dashboard](docs/Gemma.png)
 
