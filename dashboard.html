@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma Fine-tune Lab</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #d4e2f6;
+    --page-2:      #c7d8ef;
+    --surface:     #e7effc;   /* validated chart surface */
+    --surface-in:  #f2f7ff;
+    --ink:         #1e2c47;
+    --ink-2:       #4d6079;
+    --ink-muted:   #7d8ca6;
+    --grid:        #d3dff2;
+    --baseline:    #b9c9e4;
+    --series:      #2a78d6;   /* validated: 3:1+ on --surface */
+    --series-soft: rgba(42,120,214,.14);
+    --accent-grad: linear-gradient(135deg,#4a92e8,#2a78d6);
+    --good:        #0ca30c;
+    --clay-out:  14px 14px 28px rgba(63,94,145,.20), -10px -10px 24px rgba(255,255,255,.90);
+    --clay-in:   inset 3px 3px 8px rgba(63,94,145,.14), inset -3px -3px 8px rgba(255,255,255,.95);
+    --clay-ring: inset 1.5px 1.5px 4px rgba(255,255,255,.85), inset -1.5px -1.5px 5px rgba(63,94,145,.08);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: radial-gradient(1200px 700px at 15% -10%, #e6effc 0%, var(--page) 45%, var(--page-2) 100%) fixed;
+    padding: 22px;
+  }
+  .shell { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; height: calc(100vh - 44px); }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 0 6px; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 16px; background: var(--accent-grad);
+    box-shadow: 6px 6px 14px rgba(42,120,214,.35), inset 2px 2px 5px rgba(255,255,255,.45);
+    display: grid; place-items: center; color: #fff; font-size: 22px;
+  }
+  header h1 { font-size: 19px; letter-spacing: -.01em; }
+  header .sub { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .pill {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border-radius: 999px; padding: 9px 16px;
+    box-shadow: var(--clay-out); font-size: 12.5px; color: var(--ink-2); font-weight: 600;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px rgba(12,163,12,.18); }
+
+  .grid { display: grid; grid-template-columns: 1fr 400px; gap: 18px; flex: 1; min-height: 0; }
+  .left { display: flex; flex-direction: column; gap: 18px; min-width: 0; overflow-y: auto; padding: 4px; scrollbar-width: thin; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .tile {
+    background: var(--surface); border-radius: 24px; padding: 16px 18px 14px;
+    box-shadow: var(--clay-out);
+  }
+  .tile .label { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); }
+  .tile .value { font-size: 27px; font-weight: 700; margin-top: 6px; letter-spacing: -.02em; }
+  .tile .unit { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  .tile .sub { font-size: 11.5px; color: var(--ink-muted); margin-top: 3px; }
+
+  .card {
+    background: var(--surface); border-radius: 28px; padding: 18px 20px;
+    box-shadow: var(--clay-out);
+  }
+  .card h2 { font-size: 13.5px; font-weight: 700; }
+  .card .meta { font-size: 11.5px; color: var(--ink-muted); margin-top: 2px; }
+  .chart-wrap { position: relative; margin-top: 12px; }
+  .two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-2);
+    background: var(--surface-in); border-radius: 999px; padding: 5px 12px;
+    box-shadow: var(--clay-ring);
+  }
+
+  /* ---- chat ---- */
+  .chat {
+    background: var(--surface); border-radius: 28px; box-shadow: var(--clay-out);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .chat-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--grid); }
+  .chat-head h2 { font-size: 14px; }
+  .chat-head .meta { font-size: 11.5px; color: var(--ink-muted); margin-top: 2px; }
+  .msgs { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; }
+  .msg { max-width: 88%; padding: 11px 15px; border-radius: 20px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user {
+    align-self: flex-end; color: #fff; background: var(--accent-grad);
+    border-bottom-right-radius: 8px;
+    box-shadow: 5px 5px 12px rgba(42,120,214,.30);
+  }
+  .msg.bot {
+    align-self: flex-start; background: var(--surface-in); color: var(--ink);
+    border-bottom-left-radius: 8px; box-shadow: var(--clay-ring);
+    white-space: normal;
+  }
+  /* markdown inside bot bubbles */
+  .msg.bot p { margin: 0 0 8px; }
+  .msg.bot p:last-child, .msg.bot ul:last-child, .msg.bot ol:last-child { margin-bottom: 0; }
+  .msg.bot ul, .msg.bot ol { margin: 0 0 8px; padding-left: 20px; }
+  .msg.bot li { margin: 3px 0; }
+  .msg.bot h1, .msg.bot h2, .msg.bot h3, .msg.bot h4 { font-size: 13.5px; margin: 10px 0 6px; }
+  .msg.bot blockquote {
+    margin: 0 0 8px; padding: 6px 12px; border-left: 3px solid var(--series);
+    background: var(--surface); border-radius: 8px; color: var(--ink-2);
+  }
+  .msg.bot code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px;
+    background: rgba(42,120,214,.10); border-radius: 6px; padding: 1px 5px;
+  }
+  .msg.bot pre {
+    margin: 0 0 8px; padding: 10px 12px; overflow-x: auto;
+    background: var(--surface); border-radius: 12px; box-shadow: var(--clay-ring);
+  }
+  .msg.bot pre code { background: none; padding: 0; }
+  .msg.bot table { border-collapse: collapse; margin: 0 0 8px; font-size: 12.5px; }
+  .msg.bot th, .msg.bot td { border: 1px solid var(--grid); padding: 4px 9px; text-align: left; }
+  .msg.bot a { color: var(--series); }
+  .msg.bot hr { border: 0; border-top: 1px solid var(--grid); margin: 8px 0; }
+  .msg.bot .mrow {
+    display: flex; gap: 10px; margin-top: 8px; padding-top: 7px;
+    border-top: 1px solid var(--grid); font-size: 10.5px; color: var(--ink-muted); font-weight: 600;
+  }
+  .msg .caret { display: inline-block; width: 7px; height: 14px; background: var(--series); border-radius: 2px; animation: blink .8s infinite; vertical-align: text-bottom; }
+  @keyframes blink { 50% { opacity: .15; } }
+  .hint { align-self: center; font-size: 12px; color: var(--ink-muted); padding: 8px; text-align: center; }
+
+  .composer { display: flex; gap: 10px; padding: 14px 16px 16px; }
+  .composer textarea {
+    flex: 1; resize: none; border: 0; outline: 0; font: inherit; font-size: 13.5px; color: var(--ink);
+    background: var(--surface-in); border-radius: 18px; padding: 12px 16px; height: 48px;
+    box-shadow: var(--clay-in);
+  }
+  .composer textarea::placeholder { color: var(--ink-muted); }
+  .send {
+    width: 48px; height: 48px; border: 0; border-radius: 18px; cursor: pointer;
+    background: var(--accent-grad); color: #fff; font-size: 19px;
+    box-shadow: 6px 6px 14px rgba(42,120,214,.35), inset 2px 2px 5px rgba(255,255,255,.4);
+    transition: transform .08s ease;
+  }
+  .send:active { transform: scale(.94); }
+  .send:disabled { opacity: .55; cursor: default; }
+
+  .thread-sel {
+    max-width: 150px; border: 0; outline: 0; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--ink-2); background: var(--surface-in); border-radius: 12px; padding: 8px 10px;
+    box-shadow: var(--clay-in); cursor: pointer;
+  }
+  .newchat {
+    width: 36px; height: 36px; border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--accent-grad); color: #fff; font-size: 17px; line-height: 1;
+    box-shadow: 4px 4px 10px rgba(42,120,214,.30), inset 2px 2px 4px rgba(255,255,255,.4);
+    transition: transform .08s ease;
+  }
+  .newchat:active { transform: scale(.94); }
+
+  @media (max-width: 1120px) {
+    .shell { height: auto; }
+    .grid { grid-template-columns: 1fr; }
+    .chat { height: 560px; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">🦥</div>
+    <div>
+      <h1>Gemma Fine-tune Lab</h1>
+      <div class="sub" id="modelSub">loading model…</div>
+    </div>
+    <div class="pill"><span class="dot" id="gpuDot"></span><span id="gpuPill">connecting…</span></div>
+  </header>
+
+  <div class="grid">
+    <div class="left">
+      <div class="tiles">
+        <div class="tile">
+          <div class="label">Live VRAM</div>
+          <div class="value" id="tVram">—</div>
+          <div class="sub" id="tVramSub">of — GB</div>
+        </div>
+        <div class="tile">
+          <div class="label">Tokens / sec</div>
+          <div class="value" id="tTps">—</div>
+          <div class="sub" id="tTpsSub">last message</div>
+        </div>
+        <div class="tile">
+          <div class="label">Latency</div>
+          <div class="value" id="tLat">—</div>
+          <div class="sub" id="tLatSub">first token —</div>
+        </div>
+        <div class="tile">
+          <div class="label">Messages</div>
+          <div class="value" id="tMsgs">0</div>
+          <div class="sub" id="tToks">0 tokens generated</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Training loss</h2>
+        <div class="meta">QLoRA fine-tune on FineTome-100k (1,000 samples)</div>
+        <div class="chart-wrap" style="height:190px"><canvas id="lossChart" aria-label="Training loss by step"></canvas></div>
+        <div class="chips" id="trainChips"></div>
+      </div>
+
+      <div class="two-up">
+        <div class="card">
+          <h2>Throughput per message</h2>
+          <div class="meta">decode tokens / second</div>
+          <div class="chart-wrap" style="height:160px"><canvas id="tpsChart" aria-label="Tokens per second by message"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Latency per message</h2>
+          <div class="meta">seconds to full response</div>
+          <div class="chart-wrap" style="height:160px"><canvas id="latChart" aria-label="Latency by message"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:240px;">
+        <h2>GPU memory</h2>
+        <div class="meta">polled every 2 s · <span id="vramNow">—</span></div>
+        <div class="chart-wrap" style="flex:1; min-height:180px"><canvas id="vramChart" aria-label="GPU memory over time"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chat">
+      <div class="chat-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="flex:1; min-width:0;">
+            <h2>Chat with your model</h2>
+            <div class="meta">replies stream live and update the metrics ←</div>
+          </div>
+          <select id="threadSel" class="thread-sel" title="Switch thread"></select>
+          <button class="newchat" id="newBtn" title="New chat">＋</button>
+        </div>
+      </div>
+      <div class="msgs" id="msgs">
+        <div class="hint">Say hi to your fine-tuned Gemma 👋<br>Metrics update the moment you hit Enter.</div>
+      </div>
+      <div class="composer">
+        <textarea id="input" placeholder="Type a message… (Enter to send)" rows="1"></textarea>
+        <button class="send" id="sendBtn" title="Send">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SERIES = css('--series'), GRID = css('--grid'), MUTED = css('--ink-muted'),
+      INK2 = css('--ink-2'), SOFT = css('--series-soft'), BASE = css('--baseline');
+
+Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 10.5;
+Chart.defaults.color = MUTED;
+
+const tooltip = {
+  backgroundColor: '#1e2c47', cornerRadius: 10, padding: 10,
+  titleFont: { weight: '600' }, displayColors: false,
+};
+const noLegend = { legend: { display: false }, tooltip };
+const yGrid = { color: GRID, drawTicks: false };
+const xNoGrid = { display: false };
+
+function lineOpts(ymin, ymax) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: noLegend,
+    scales: {
+      x: { grid: xNoGrid, ticks: { maxTicksLimit: 8 }, border: { color: BASE } },
+      y: { grid: yGrid, border: { display: false }, min: ymin, suggestedMax: ymax,
+           ticks: { maxTicksLimit: 5 } },
+    },
+  };
+}
+
+const lossChart = new Chart(document.getElementById('lossChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [{
+    data: [], borderColor: SERIES, borderWidth: 2, pointRadius: 0,
+    pointHoverRadius: 5, pointHitRadius: 14, pointHoverBackgroundColor: SERIES,
+    tension: .25,
+  }]},
+  options: lineOpts(undefined, undefined),
+});
+
+function barChart(el, unit) {
+  return new Chart(document.getElementById(el), {
+    type: 'bar',
+    data: { labels: [], datasets: [{
+      data: [], backgroundColor: SERIES, borderRadius: 4,
+      borderSkipped: 'bottom', maxBarThickness: 26, categoryPercentage: .7,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: { legend: { display: false },
+        tooltip: { ...tooltip, callbacks: { label: c => c.parsed.y + ' ' + unit } } },
+      scales: {
+        x: { grid: xNoGrid, border: { color: BASE } },
+        y: { grid: yGrid, border: { display: false }, beginAtZero: true, ticks: { maxTicksLimit: 5 } },
+      },
+    },
+  });
+}
+const tpsChart = barChart('tpsChart', 'tok/s');
+const latChart = barChart('latChart', 's');
+
+const vramChart = new Chart(document.getElementById('vramChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [{
+    data: [], borderColor: SERIES, borderWidth: 2, pointRadius: 0,
+    pointHoverRadius: 5, pointHitRadius: 14, fill: true, backgroundColor: SOFT,
+    tension: .3,
+  }]},
+  options: lineOpts(0, 8),
+});
+
+/* ---------- bootstrap ---------- */
+let vramTotal = 8;
+fetch('/api/bootstrap').then(r => r.json()).then(b => {
+  const t = b.training;
+  lossChart.data.labels = t.losses.map(l => l.step);
+  lossChart.data.datasets[0].data = t.losses.map(l => +l.loss.toFixed(3));
+  lossChart.update();
+  const chips = [
+    t.max_steps + ' steps', t.train_minutes + ' min train',
+    'peak ' + t.peak_vram_gb + ' GB', 'final loss ' + t.losses.at(-1).loss.toFixed(2),
+    'adapter ' + b.adapter_mb + ' MB', t.gpu,
+  ];
+  document.getElementById('trainChips').innerHTML =
+    chips.map(c => `<span class="chip">${c}</span>`).join('');
+  vramTotal = b.gpu.vram_total_gb;
+  vramChart.options.scales.y.suggestedMax = vramTotal;
+  document.getElementById('tVramSub').textContent = 'of ' + vramTotal + ' GB';
+  if (b.model_label) document.getElementById('modelSub').textContent = b.model_label;
+});
+
+/* ---------- live GPU poll ---------- */
+function pushVram(g) {
+  document.getElementById('tVram').innerHTML =
+    g.vram_used_gb.toFixed(2) + ' <span class="unit">GB</span>';
+  document.getElementById('gpuPill').textContent =
+    'GPU ' + g.gpu_util_pct + '% · ' + g.vram_used_gb.toFixed(1) + ' / ' + g.vram_total_gb + ' GB';
+  document.getElementById('vramNow').textContent =
+    g.vram_used_gb.toFixed(2) + ' GB used';
+  const d = vramChart.data;
+  d.labels.push(new Date().toLocaleTimeString([], {minute:'2-digit', second:'2-digit'}));
+  d.datasets[0].data.push(g.vram_used_gb);
+  if (d.labels.length > 90) { d.labels.shift(); d.datasets[0].data.shift(); }
+  vramChart.update('none');
+}
+setInterval(() => fetch('/api/gpu').then(r => r.json()).then(pushVram).catch(()=>{}), 2000);
+
+/* ---------- chat: threads + persistent history + markdown ---------- */
+const msgs = document.getElementById('msgs');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const threadSel = document.getElementById('threadSel');
+const newBtn = document.getElementById('newBtn');
+let threads = [], metricsLog = [], activeId = null, busy = false;
+
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+marked.use({ breaks: true });
+const renderMd = (el, text) => {
+  el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+};
+
+function bubble(cls, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + cls;
+  el.textContent = text;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+  return el;
+}
+
+const metricFooter = m =>
+  `<div class="mrow"><span>${m.tokens} tok</span><span>${m.tokens_per_s} tok/s</span>` +
+  `<span>${m.latency_s}s total</span><span>${m.first_token_s}s first</span></div>`;
+
+function activeThread() { return threads.find(t => t.id === activeId); }
+
+function renderThreadSel() {
+  threadSel.innerHTML = threads.length
+    ? threads.map(t =>
+        `<option value="${t.id}"${t.id === activeId ? ' selected' : ''}>${esc(t.title)}</option>`
+      ).join('')
+    : '<option>no chats yet</option>';
+}
+
+function renderThread() {
+  msgs.innerHTML = '';
+  const t = activeThread();
+  if (!t || !t.messages.length) {
+    msgs.innerHTML = '<div class="hint">Say hi to your model 👋<br>Metrics update the moment you hit Enter.</div>';
+    return;
+  }
+  for (const m of t.messages) {
+    const el = bubble(m.role === 'user' ? 'user' : 'bot', m.content);
+    if (m.role === 'assistant') {
+      renderMd(el, m.content);
+      if (m.metrics) el.insertAdjacentHTML('beforeend', metricFooter(m.metrics));
+    }
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function refreshAggregates() {
+  const n = metricsLog.length;
+  document.getElementById('tMsgs').textContent = n;
+  const tok = metricsLog.reduce((s, m) => s + m.tokens, 0);
+  document.getElementById('tToks').textContent = tok.toLocaleString() + ' tokens generated';
+  if (n) {
+    const last = metricsLog[n - 1];
+    document.getElementById('tTps').innerHTML = last.tokens_per_s + ' <span class="unit">tok/s</span>';
+    document.getElementById('tTpsSub').textContent = 'last message';
+    document.getElementById('tLat').innerHTML = last.latency_s + ' <span class="unit">s</span>';
+    document.getElementById('tLatSub').textContent = 'first token ' + last.first_token_s + 's';
+  }
+  const recent = metricsLog.slice(-20);
+  const base = n - recent.length;
+  tpsChart.data.labels = recent.map((_, i) => '#' + (base + i + 1));
+  tpsChart.data.datasets[0].data = recent.map(m => m.tokens_per_s);
+  tpsChart.update();
+  latChart.data.labels = tpsChart.data.labels.slice();
+  latChart.data.datasets[0].data = recent.map(m => m.latency_s);
+  latChart.update();
+}
+
+async function loadState() {
+  const s = await fetch('/api/state').then(r => r.json());
+  threads = s.threads; metricsLog = s.metrics_log;
+  activeId = threads.length ? threads[threads.length - 1].id : null;
+  renderThreadSel(); renderThread(); refreshAggregates();
+}
+
+async function newThread(title = 'New chat') {
+  const t = await fetch('/api/threads', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  }).then(r => r.json());
+  threads.push(t); activeId = t.id;
+  renderThreadSel(); renderThread();
+  return t;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  busy = true; sendBtn.disabled = true; input.value = '';
+  if (!activeId) await newThread(text.slice(0, 48));
+  const t = activeThread();
+  if (t.title === 'New chat') { t.title = text.slice(0, 48); renderThreadSel(); }
+  document.querySelector('.hint')?.remove();
+  bubble('user', text);
+  const bot = bubble('bot', '');
+  bot.innerHTML = '<span class="caret"></span>';
+
+  const t0 = performance.now();
+  let acc = '', chunks = 0;
+  const liveTps = setInterval(() => {
+    if (chunks > 2) {
+      document.getElementById('tTps').innerHTML =
+        (chunks / ((performance.now() - t0) / 1000)).toFixed(1) + ' <span class="unit">tok/s</span>';
+      document.getElementById('tTpsSub').textContent = 'streaming…';
+    }
+  }, 250);
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thread_id: activeId, message: text }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split('\n\n'); buf = parts.pop();
+      for (const p of parts) {
+        if (!p.startsWith('data: ')) continue;
+        const ev = JSON.parse(p.slice(6));
+        if (ev.token !== undefined) {
+          acc += ev.token; chunks++;
+          renderMd(bot, acc);
+          bot.insertAdjacentHTML('beforeend', '<span class="caret"></span>');
+          msgs.scrollTop = msgs.scrollHeight;
+        } else if (ev.done) {
+          finish(bot, acc, ev, text);
+        }
+      }
+    }
+  } catch (e) {
+    bot.textContent = '⚠ ' + e.message;
+  } finally {
+    clearInterval(liveTps);
+    busy = false; sendBtn.disabled = false; input.focus();
+  }
+}
+
+function finish(bot, acc, m, userText) {
+  renderMd(bot, acc);
+  bot.insertAdjacentHTML('beforeend', metricFooter(m));
+  const t = activeThread();
+  if (t) {
+    t.messages.push({ role: 'user', content: userText });
+    t.messages.push({ role: 'assistant', content: acc, metrics: m });
+  }
+  metricsLog.push(m);
+  refreshAggregates();
+  pushVram(m);
+}
+
+threadSel.addEventListener('change', () => { activeId = threadSel.value; renderThread(); });
+newBtn.addEventListener('click', async () => { if (!busy) { await newThread(); input.focus(); } });
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+loadState();
+input.focus();
+</script>
+</body>
+</html>

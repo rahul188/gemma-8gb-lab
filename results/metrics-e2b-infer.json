@@ -1,0 +1,8 @@
+{
+  "model": "unsloth/gemma-4-E2B-it",
+  "mode": "inference-only",
+  "model_load_seconds": 21.6,
+  "vram_after_load_gb": 6.95,
+  "generation_peak_vram_gb": 7.05,
+  "three_prompts_seconds": 61.9
+}

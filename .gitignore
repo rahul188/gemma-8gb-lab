@@ -1,0 +1,15 @@
+# environment / caches
+.venv/
+__pycache__/
+unsloth_compiled_cache/
+.claude/
+
+# training outputs too big or too personal for git
+results/checkpoints/
+results/chat_state.json
+gemma3-4b-lora/
+gemma4-e2b-lora/
+
+# misc
+*.log
+.DS_Store

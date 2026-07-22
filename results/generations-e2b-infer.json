@@ -1,0 +1,16 @@
+{
+  "before": [
+    {
+      "prompt": "Explain LoRA fine-tuning to a backend developer in 3 sentences.",
+      "response": "LoRA (Low-Rank Adaptation) is a parameter-efficient fine-tuning technique that freezes the large pre-trained model's core weights and injects small, trainable low-rank matrices into the transformer layers. This drastically reduces the number of trainable parameters, making fine-tuning much faster and requiring significantly less VRAM. Essentially, it allows you to adapt a massive model to a new task by only training a small set of new, lightweight matrices."
+    },
+    {
+      "prompt": "Write a Python one-liner to count word frequencies in a string.",
+      "response": "Here are a few options for a Python one-liner to count word frequencies, depending on what you want the output to look like:\n\n### Option 1: Using `collections.Counter` (Most Pythonic and Recommended)\n\nThis is the cleanest and most standard way to do this.\n\n```python\nfrom collections import Counter; from string import punctuation; text = \"hello world hello world\"; Counter(word.lower() for word in text.split() if word.isalnum)\n```\n\n**Explanation:**\n\n1. **`text.split()`**: Splits the input string into a list of words.\n2. **`word.lower()`**: Converts each word to lowercase to ensure \"Hello\" and \"hello\" are counted together.\n3. **`if word.isalnum`**: Filters out punctuation and empty strings (only keeps words composed of alphanumeric characters).\n4. **`Counter(...)`**: Takes the resulting list of clean words and automatically tall"
+    },
+    {
+      "prompt": "What is the capital of Telangana, and what is it known for in tech?",
+      "response": "The capital of Telangana is **Hyderabad**.\n\nIn terms of technology, Hyderabad is widely known as the **\"Cyber City\"** or the **\"IT Hub\"** of India. It is a major center for:\n\n* **Information Technology (IT) and Software Development:** It has a massive concentration of IT companies, startups, and software service providers.\n* **IT Services and Outsourcing:** It is a major global center for IT services, often serving international clients.\n* **Start-up Ecosystem:** Hyderabad has a thriving ecosystem of startups, attracting venture capital and fostering innovation in areas like AI, FinTech, and deep tech.\n* **Global Tech Presence:** Due to its strong IT sector, Hyderabad is a key location for global tech giants to establish their operations in India.\n\nIn short, Hyderabad is synonymous with **Indian IT, software development, and the burgeoning tech startup scene.**"
+    }
+  ]
+}

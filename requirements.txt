@@ -1,0 +1,8 @@
+# Install CUDA torch FIRST from the PyTorch index, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+# then the rest. If unsloth downgrades torch to the CPU build, reinstall the
+# +cu wheel (same version) afterwards — see README "Windows gotchas".
+unsloth
+triton-windows; platform_system == "Windows"
+fastapi
+uvicorn
