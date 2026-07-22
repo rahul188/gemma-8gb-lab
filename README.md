@@ -53,9 +53,3 @@ that would genuinely help:
 - Dashboard: token-level latency histogram, model switcher, dark clay theme
 
 Keep PRs small and measured — a claim with a number beats a feature without one.
-
-## Caveats
-
-60 steps ≈ 0.24 epochs: this proves the *pipeline*, not model quality. One
-machine, one driver, no eval set. MIT licensed. Not affiliated with Google or
-Unsloth — just checking a LinkedIn claim with a wattmeter.
