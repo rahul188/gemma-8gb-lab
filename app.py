@@ -225,8 +225,12 @@ class ModelIn(BaseModel):
 @app.post("/api/model")
 def switch_model(inp: ModelIn):
     """Hot-swap the running model. Blocks until any in-flight generation finishes."""
-    entry = resolve(inp.key)
-    with gen_lock:                     # wait for active generation to finish
+    if inp.key not in MODELS:
+        raise HTTPException(
+            400, f"unknown model key {inp.key!r}; known: {sorted(MODELS)}"
+        )
+    entry = MODELS[inp.key]   # use the hardcoded registry entry, not user-supplied paths
+    with gen_lock:             # wait for active generation to finish
         with _ms_lock:
             _do_load(entry)
     return {"ok": True, "model_key": inp.key, "label": entry.get("label", inp.key)}
