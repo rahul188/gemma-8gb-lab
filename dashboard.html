@@ -160,7 +160,22 @@
   }
   .newchat:active { transform: scale(.94); }
 
-  @media (max-width: 1120px) {
+  .model-sel {
+    border: 0; outline: 0; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--ink-2); background: var(--surface-in); border-radius: 12px;
+    padding: 8px 10px; box-shadow: var(--clay-in); cursor: pointer; max-width: 220px;
+  }
+  .switch-btn {
+    height: 36px; padding: 0 14px; border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--accent-grad); color: #fff; font-size: 12px; font-weight: 700;
+    box-shadow: 4px 4px 10px rgba(42,120,214,.30), inset 2px 2px 4px rgba(255,255,255,.4);
+    transition: transform .08s ease; white-space: nowrap;
+  }
+  .switch-btn:disabled { opacity: .55; cursor: default; }
+  .switch-btn:not(:disabled):active { transform: scale(.94); }
+  .switch-status {
+    font-size: 11px; color: var(--ink-muted); font-weight: 600; min-width: 80px;
+  }
     .shell { height: auto; }
     .grid { grid-template-columns: 1fr; }
     .chat { height: 560px; }
@@ -175,6 +190,11 @@
     <div>
       <h1>Gemma Fine-tune Lab</h1>
       <div class="sub" id="modelSub">loading model…</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+      <select id="modelSel" class="model-sel" title="Switch model"></select>
+      <button id="switchBtn" class="switch-btn" disabled>Switch</button>
+      <span id="switchStatus" class="switch-status"></span>
     </div>
     <div class="pill"><span class="dot" id="gpuDot"></span><span id="gpuPill">connecting…</span></div>
   </header>
@@ -325,23 +345,91 @@ const vramChart = new Chart(document.getElementById('vramChart'), {
 });
 
 /* ---------- bootstrap ---------- */
-let vramTotal = 8;
+let vramTotal = 8, currentModelKey = '';
 fetch('/api/bootstrap').then(r => r.json()).then(b => {
-  const t = b.training;
-  lossChart.data.labels = t.losses.map(l => l.step);
-  lossChart.data.datasets[0].data = t.losses.map(l => +l.loss.toFixed(3));
-  lossChart.update();
-  const chips = [
-    t.max_steps + ' steps', t.train_minutes + ' min train',
-    'peak ' + t.peak_vram_gb + ' GB', 'final loss ' + t.losses.at(-1).loss.toFixed(2),
-    'adapter ' + b.adapter_mb + ' MB', t.gpu,
-  ];
-  document.getElementById('trainChips').innerHTML =
-    chips.map(c => `<span class="chip">${c}</span>`).join('');
+  const t = b.training || {};
+  if (t.losses && t.losses.length) {
+    lossChart.data.labels = t.losses.map(l => l.step);
+    lossChart.data.datasets[0].data = t.losses.map(l => +l.loss.toFixed(3));
+    lossChart.update();
+    const chips = [
+      t.max_steps + ' steps', t.train_minutes + ' min train',
+      'peak ' + t.peak_vram_gb + ' GB', 'final loss ' + t.losses.at(-1).loss.toFixed(2),
+      'adapter ' + b.adapter_mb + ' MB', t.gpu,
+    ].filter(Boolean);
+    document.getElementById('trainChips').innerHTML =
+      chips.map(c => `<span class="chip">${c}</span>`).join('');
+  } else {
+    document.getElementById('trainChips').innerHTML =
+      '<span class="chip">no training data for this model</span>';
+  }
   vramTotal = b.gpu.vram_total_gb;
   vramChart.options.scales.y.suggestedMax = vramTotal;
   document.getElementById('tVramSub').textContent = 'of ' + vramTotal + ' GB';
   if (b.model_label) document.getElementById('modelSub').textContent = b.model_label;
+  currentModelKey = b.model_key || '';
+  syncModelSel();
+});
+
+/* ---------- model switcher ---------- */
+const modelSel = document.getElementById('modelSel');
+const switchBtn = document.getElementById('switchBtn');
+const switchStatus = document.getElementById('switchStatus');
+let allModels = [];
+
+fetch('/api/models').then(r => r.json()).then(list => {
+  allModels = list;
+  modelSel.innerHTML = list.map(m =>
+    `<option value="${m.key}">${m.label.split(' · ')[0]} — ${m.vram_note}</option>`
+  ).join('');
+  switchBtn.disabled = false;
+  syncModelSel();
+});
+
+function syncModelSel() {
+  if (!currentModelKey) return;
+  const opt = [...modelSel.options].find(o => o.value === currentModelKey);
+  if (opt) modelSel.value = currentModelKey;
+}
+
+switchBtn.addEventListener('click', async () => {
+  const key = modelSel.value;
+  if (!key || key === currentModelKey) return;
+  switchBtn.disabled = true;
+  sendBtn.disabled = true;
+  switchStatus.textContent = 'loading…';
+  try {
+    const r = await fetch('/api/model', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    currentModelKey = key;
+    document.getElementById('modelSub').textContent = data.label;
+    switchStatus.textContent = '✓ loaded';
+    // refresh training chips for the new model
+    fetch('/api/bootstrap').then(rr => rr.json()).then(b => {
+      const t = b.training || {};
+      if (t.losses && t.losses.length) {
+        lossChart.data.labels = t.losses.map(l => l.step);
+        lossChart.data.datasets[0].data = t.losses.map(l => +l.loss.toFixed(3));
+        lossChart.update();
+      } else {
+        lossChart.data.labels = []; lossChart.data.datasets[0].data = [];
+        lossChart.update();
+        document.getElementById('trainChips').innerHTML =
+          '<span class="chip">no training data for this model</span>';
+      }
+    });
+  } catch (e) {
+    switchStatus.textContent = '⚠ ' + e.message;
+    modelSel.value = currentModelKey;
+  } finally {
+    switchBtn.disabled = false;
+    sendBtn.disabled = false;
+    setTimeout(() => { if (switchStatus.textContent.startsWith('✓')) switchStatus.textContent = ''; }, 3000);
+  }
 });
 
 /* ---------- live GPU poll ---------- */

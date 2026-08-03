@@ -10,6 +10,8 @@ import os
 import time
 from pathlib import Path
 
+from models import detect_template_order
+
 # Env overrides so the same script can run other models, e.g. the true
 # Gemma 4 E2B attempt:  FT_MODEL=unsloth/gemma-4-E2B-it FT_EXACT=1
 FT_MODEL = os.environ.get("FT_MODEL")
@@ -89,10 +91,7 @@ def main():
     load_vram_gb = torch.cuda.memory_reserved() / 1024**3
     print(f"Model loaded in {load_time:.0f}s, VRAM reserved: {load_vram_gb:.2f} GB")
 
-    template_order = (
-        ("gemma-4", "gemma-3") if "gemma-4" in MODEL_NAME.lower()
-        else ("gemma-3", "gemma-4")
-    )
+    template_order = detect_template_order(MODEL_NAME)
     for name in template_order:
         try:
             tokenizer = get_chat_template(tokenizer, chat_template=name)
@@ -199,7 +198,16 @@ def main():
     after = generate(model, tokenizer, TEST_PROMPTS, "AFTER")
 
     is_g4 = "gemma-4" in MODEL_NAME.lower()
-    adapter_dir = Path(__file__).parent / ("gemma4-e2b-lora" if is_g4 else "gemma3-4b-lora")
+    # Derive adapter directory name from model key (fall back to model_id slug)
+    from models import MODELS as _MODELS
+    adapter_key = next(
+        (k for k, v in _MODELS.items() if v["model_id"] == MODEL_NAME), None
+    )
+    if adapter_key:
+        adapter_dir = Path(__file__).parent / (_MODELS[adapter_key]["adapter_dir"].split("/")[-1])
+    else:
+        slug = MODEL_NAME.split("/")[-1].lower().replace(".", "-")
+        adapter_dir = Path(__file__).parent / f"{slug}-lora"
     model.save_pretrained(str(adapter_dir))
     tokenizer.save_pretrained(str(adapter_dir))
 
@@ -218,7 +226,7 @@ def main():
         "train_samples_per_second": stats.metrics.get("train_samples_per_second"),
         "losses": losses,
     }
-    tag = "-e2b" if is_g4 else ""
+    tag = "-e2b" if is_g4 else ("-" + MODEL_NAME.split("/")[-1].lower() if not adapter_key else "")
     (RESULTS / f"metrics{tag}.json").write_text(json.dumps(metrics, indent=2))
     (RESULTS / f"generations{tag}.json").write_text(
         json.dumps({"before": before, "after": after}, indent=2)
