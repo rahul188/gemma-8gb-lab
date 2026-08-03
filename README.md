@@ -1,9 +1,21 @@
 # gemma-8gb-lab
 
-Fine-tuning and running Gemma on an 8GB consumer GPU — actually measured, not
+Fine-tuning and running LLMs on an 8GB consumer GPU — actually measured, not
 quoted. RTX 4060 Ti, native Windows 11, no cloud.
 
 ![Gemma Fine-tune Lab dashboard](docs/Gemma.png)
+
+## Supported models
+
+| Key | Model | VRAM (4-bit) | Notes |
+|---|---|---|---|
+| `gemma3-4b` | Gemma 3 4B | ~3.0 GB | **default** · fine-tuned with QLoRA |
+| `gemma4-e2b` | Gemma 4 E2B | ~7.1 GB | inference only · close all apps |
+| `llama32-3b` | Llama 3.2 3B | ~1.7 GB | fastest; great for low-VRAM runs |
+| `llama31-8b` | Llama 3.1 8B | ~4.6 GB | strong general-purpose model |
+| `qwen25-7b` | Qwen 2.5 7B | ~4.1 GB | excellent code + reasoning |
+| `mistral-7b` | Mistral 7B v0.3 | ~4.1 GB | reliable baseline |
+| `phi3-mini` | Phi-3 Mini 4K | ~2.2 GB | small but capable |
 
 ## Scoreboard
 
@@ -29,6 +41,36 @@ python finetune_gemma4.py   # ~10 min: train + before/after comparison + metrics
 python app.py               # dashboard → http://127.0.0.1:7860
 ```
 
+### Switching models
+
+**Dashboard**: use the model selector in the header — it hot-swaps models
+without restarting the server.
+
+**CLI (app.py)**:
+```powershell
+APP_MODEL=llama32-3b  python app.py   # Llama 3.2 3B
+APP_MODEL=qwen25-7b   python app.py   # Qwen 2.5 7B
+APP_MODEL=mistral-7b  python app.py   # Mistral 7B
+APP_MODEL=phi3-mini   python app.py   # Phi-3 Mini
+APP_MODEL=llama31-8b  python app.py   # Llama 3.1 8B
+```
+
+**chat.py**:
+```powershell
+python chat.py --list                  # show all model keys
+python chat.py --model llama32-3b     # chat with Llama 3.2 3B
+python chat.py --model qwen25-7b      # chat with Qwen 2.5 7B
+python chat.py --base                 # base model (no adapter)
+```
+
+**Fine-tuning other models**:
+```powershell
+FT_MODEL=unsloth/Llama-3.2-3B-Instruct-bnb-4bit python finetune_gemma4.py
+FT_MODEL=unsloth/Qwen2.5-7B-Instruct-bnb-4bit   python finetune_gemma4.py
+```
+Adapters are saved to `<model-key>-lora/` and loaded automatically by `app.py`
+and `chat.py`.
+
 The dashboard streams chat replies token-by-token while tokens/sec, latency and
 VRAM charts update live. Threads persist across refreshes. Pure Chart.js +
 vanilla JS, no build step.
@@ -50,6 +92,6 @@ that would genuinely help:
 - Make Gemma 4 E2B *training* fit somehow (PLE offload? smaller LoRA target set? prove me wrong)
 - An eval set, so "loss went down" becomes "it actually got better"
 - Linux/WSL numbers next to the Windows ones
-- Dashboard: token-level latency histogram, model switcher, dark clay theme
+- Dashboard: token-level latency histogram, dark clay theme
 
 Keep PRs small and measured — a claim with a number beats a feature without one.
